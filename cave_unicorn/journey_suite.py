@@ -122,6 +122,69 @@ def _render_marketing_blog(blog, core, funnel_url: str | None = None) -> str:
     return "\n\n".join(parts) + "\n"
 
 
+# The Isaac-APPROVED story-beat headings (the live skilltree chapter opener he
+# passed): content-shaped STORY BEATS, never renderer-mechanic slot names. An
+# agent may override per blog with headings AUTHORED from the content.
+_DEFAULT_BEAT_HEADINGS = {
+    "status_quo": "Where I was",
+    "obstacle": "The wall",
+    "overcome": "The turn",
+    "the_boon": "The boon",
+}
+
+
+def render_chapter_blog(core, beat_headings: Dict[str, str] | None = None,
+                        cta_copy: str | None = None,
+                        funnel_url: str | None = None) -> str:
+    """NARRATIVE CHAPTER render of a JourneyCore (Blog 1 of a framework chapter).
+
+    Replaces the fork's framework_blog_from_core as the chapter-lane renderer
+    (Isaac 2026-07-11, the composed-run gate ruling): that renderer's fixed slot
+    names (The Story / The Key Insight / Demo / Why This Matters / Take Action)
+    and bare emoji link lines are the SAME mechanic-scaffolding class rejected
+    on the AIDA render — structure stays invisible. Here the section headings
+    are STORY BEATS (agent-authored via beat_headings, defaulting to the
+    approved skilltree chapter shape), and the piece CLOSES with flowing CTA
+    copy (cta_copy — authored by the fill agent, carrying the framework's four
+    facts and the deep-dive link woven as prose) ending in ONE Start-here
+    funnel link. funnel_url falls back to deep_dive_url then plugin_url
+    (INTERIM until funnel pages exist — same rule as the marketing render).
+    The fork file stays frozen; the chapter render law lives here.
+    """
+    h = dict(_DEFAULT_BEAT_HEADINGS)
+    if beat_headings:
+        h.update(beat_headings)
+
+    parts = [f"# {core.journey_name}"]
+    if core.hook:
+        parts.append(f"**{core.hook}**")
+
+    parts.append("\n\n".join([f"## {h['status_quo']}", core.status_quo]))
+    parts.append("\n\n".join([f"## {h['obstacle']}", core.obstacle]))
+    parts.append("\n\n".join([f"## {h['overcome']}", core.overcome,
+                              f"**{core.accomplishment}**"]))
+
+    boon = [f"## {h['the_boon']}", core.the_boon]
+    if core.why_this_matters:
+        boon.append(core.why_this_matters)
+    parts.append("\n\n".join(boon))
+
+    # Closing = flowing copy, NO heading, ONE funnel link (never emoji link
+    # lines, never a links section — github lives INSIDE the funnel).
+    closing: list = []
+    if core.universal_application:
+        closing.append(core.universal_application)
+    if cta_copy:
+        closing.append(cta_copy)
+    funnel = funnel_url or core.deep_dive_url or core.plugin_url
+    if funnel:
+        closing.append(f"**Start here: {funnel}**")
+    if closing:
+        parts.append("\n\n".join(closing))
+
+    return "\n\n".join(parts) + "\n"
+
+
 def _build_pack_md(core, renderers, image_prompts_path: str | None) -> str:
     """The socials pack body: twitter/linkedin/discord from_core renders +
     the agent's image prompts passthrough + the source footer."""

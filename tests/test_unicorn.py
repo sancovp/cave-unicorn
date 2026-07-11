@@ -559,6 +559,60 @@ class TestJourneySuite:
         with pytest.raises(Exception, match="validation error|Field required"):
             render_suite(str(cp), str(bp), str(tmp_path / "out"))
 
+    def _core_obj(self, **over):
+        from cave_unicorn.journey_suite import field_contract, _load_fork_modules
+        contract = field_contract()
+        data = {f: f"core {f} text." for f, d in contract["journey_core"].items()
+                if d.startswith("REQUIRED")}
+        data["hashtags"] = ["AI"]
+        data.update(over)
+        core_mod, _r, _t, _f = _load_fork_modules()
+        return core_mod.JourneyCore(**data)
+
+    def test_chapter_render_no_mechanic_headings(self):
+        # Isaac 2026-07-11 (composed-run gate): the fork renderer's fixed slot
+        # names + emoji link lines are the rejected scaffolding class — the
+        # chapter render uses STORY-BEAT headings and closing copy instead.
+        from cave_unicorn.journey_suite import render_chapter_blog
+        core = self._core_obj(hook="An authored hook.")
+        md = render_chapter_blog(core)
+        for scaffold in ("## The Story", "## The Key Insight", "## Demo",
+                         "## Why This Matters", "## Take Action",
+                         "📖 Deep dive:", "🔌 Plugin:", "🛠️",
+                         "If this helped, share it"):
+            assert scaffold not in md
+        for beat in ("## Where I was", "## The wall", "## The turn",
+                     "## The boon"):
+            assert beat in md
+        assert "**An authored hook.**" in md
+        assert "**core accomplishment text.**" in md   # result bolded in-beat
+
+    def test_chapter_render_authored_headings_cta_and_funnel(self):
+        # Agent-authored beat headings override the defaults; cta_copy is the
+        # closing copy (carries the four facts + woven links); ONE funnel link
+        # with the explicit-wins-then-deep-dive-then-plugin chain.
+        from cave_unicorn.journey_suite import render_chapter_blog
+        core = self._core_obj(
+            deep_dive_url="https://site/blog/x-deep-dive.html",
+            plugin_url="https://github.com/org/plugin")
+        md = render_chapter_blog(
+            core,
+            beat_headings={"status_quo": "Before the machine existed"},
+            cta_copy="This is a framework you hand your agents — the copy.",
+            funnel_url="https://site/funnel/x.html")
+        assert "## Before the machine existed" in md
+        assert "## The wall" in md                      # unoverridden default
+        assert "This is a framework you hand your agents — the copy." in md
+        assert "**Start here: https://site/funnel/x.html**" in md
+        assert md.count("**Start here:") == 1
+        md2 = render_chapter_blog(core)                 # fallback chain
+        assert "**Start here: https://site/blog/x-deep-dive.html**" in md2
+
+    def test_chapter_render_no_funnel_when_core_has_no_links(self):
+        from cave_unicorn.journey_suite import render_chapter_blog
+        md = render_chapter_blog(self._core_obj())
+        assert "**Start here:" not in md
+
 
 class TestCli:
     def test_init_show_set(self, tmp_path, monkeypatch, capsys):
