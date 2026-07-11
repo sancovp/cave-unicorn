@@ -76,6 +76,13 @@ def run_claude_agent(prompt: str, timeout: int = 900) -> Dict[str, Any]:
 def render_for_pack(pack_path: str, blog_md_path: str,
                     out_dir: str | None = None) -> Dict[str, Any]:
     """Render one pack's images; verify the PNG artifacts. Returns a status dict."""
+    if Path(pack_path).is_dir():
+        # Operators pass the per-slug queue DIR as often as the pack.md itself;
+        # a bare dir would silently derive the wrong images dir (its parent).
+        pack_path = str(Path(pack_path) / "pack.md")
+    if not Path(pack_path).exists():
+        return {"status": "failed", "error": f"pack not found: {pack_path}",
+                "images_dir": ""}
     out = Path(out_dir) if out_dir else Path(pack_path).parent / "images"
     out.mkdir(parents=True, exist_ok=True)
 

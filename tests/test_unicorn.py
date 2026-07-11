@@ -259,6 +259,28 @@ class TestImages:
         out = images.render_for_pack(str(pack), "/x/blog.md")
         assert out["status"] == "rendered" and len(out["images"]) == 3
 
+    def test_render_accepts_queue_dir_as_pack_path(self, tmp_path, monkeypatch):
+        # Passing the per-slug queue DIR (operator habit) must resolve to
+        # dir/pack.md and render into dir/images — not the dir's PARENT
+        # (the live 2026-07-11 miss: PNGs landed in socials_queue/images).
+        from cave_unicorn import images
+        (tmp_path / "pack.md").write_text("## IMAGE PROMPTS\nx\n")
+
+        def fake_agent(prompt, timeout=900):
+            for n in images.EXPECTED_PNGS:
+                (tmp_path / "images" / n).write_bytes(b"png")
+            return {"ok": True, "error": ""}
+
+        monkeypatch.setattr(images, "run_claude_agent", fake_agent)
+        out = images.render_for_pack(str(tmp_path), "/x/blog.md")
+        assert out["status"] == "rendered"
+        assert out["images_dir"] == str(tmp_path / "images")
+
+    def test_render_missing_pack_fails_loud(self, tmp_path):
+        from cave_unicorn import images
+        out = images.render_for_pack(str(tmp_path / "nope"), "/x/blog.md")
+        assert out["status"] == "failed" and "pack not found" in out["error"]
+
 
 class TestSeam:
     def test_schema_shape_matches_live_registrations(self):
