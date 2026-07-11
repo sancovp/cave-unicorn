@@ -400,6 +400,46 @@ class TestSocials:
         assert out["results"][0]["status"] == "framework_missing"
         assert flips == [("Blog_X", {"framework_missing": True})]
 
+    def test_scan_release_clears_stale_hold_and_error_flags(self, tmp_path,
+                                                            monkeypatch):
+        # A node that was held (framework_missing) and failed once
+        # (socials_pack_error) must come out of a SUCCESSFUL pack with both
+        # stale flags cleared — a healthy packed node never carries them.
+        from cave_unicorn import socials
+
+        md = tmp_path / "blog.md"
+        md.write_text("x")
+        core = {"deep_dive_url": "https://s/blog/deep.html",
+                "plugin_url": "https://github.com/x/y"}
+        (tmp_path / "blog.journey_core.json").write_text(json.dumps(core))
+
+        monkeypatch.setattr(
+            socials, "pack_one",
+            lambda *a, **k: {"status": "packed", "slug": "x",
+                             "model": "m", "pack_path": "p",
+                             "blog_aida": "b", "core_path": "c"})
+        flips = []
+        monkeypatch.setattr(
+            socials, "_carton",
+            lambda: (object(),
+                     lambda concept, props, mode="merge", shared_connection=None:
+                         flips.append((concept, props)),
+                     None))
+        monkeypatch.setattr(
+            socials, "_unpacked_published",
+            lambda graph: [{"concept": "Blog_X",
+                            "props": {"output_path": str(md),
+                                      "site_url": "https://s/blog/x.html",
+                                      "framework_missing": True,
+                                      "socials_pack_error": "old failure"}}])
+        out = socials.fire_socials_pack()
+        assert out["packed"] == 1
+        (concept, props), = flips
+        assert concept == "Blog_X"
+        assert props["socials_packed"] is True
+        assert props["framework_missing"] is False
+        assert props["socials_pack_error"] == ""
+
 
 class TestJourneySuite:
     def _fills(self, tmp_path):

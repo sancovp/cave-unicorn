@@ -258,6 +258,10 @@ def fire_socials_pack(**kwargs: Any) -> Dict[str, Any]:
                 # The gate held this node on an earlier scan; the framework
                 # has since been wired — clear the stale flag with the flip.
                 flip["framework_missing"] = False
+            if props.get("socials_pack_error"):
+                # An earlier attempt failed and left its error on the node;
+                # a healthy packed node must not carry a stale error string.
+                flip["socials_pack_error"] = ""
             set_props(concept, flip, mode="merge", shared_connection=graph)
         else:
             set_props(concept, {"socials_pack_error": report["error"][:200]},
