@@ -124,36 +124,43 @@ def _render_marketing_blog(blog, core, funnel_url: str | None = None) -> str:
 
 # THE FIXPOINT POST (Isaac 2026-07-12, verbatim spec): ONE invariant blog post
 # format for all blog posts forever — a fixpoint. OVERVIEW + JOURNEY +
-# FRAMEWORK, with the hero's-journey structure SUPER-EXPLICIT — "the patterns
-# being visible IS the position/marketing/brand"; part of what is sold is THE
-# MACHINE that does hero's-journey marketing in this exact way. The JOURNEY
-# ladder, his verbatim: STATUS QUO -> DEBATE -crossing-> TRIALS -obstacles->
-# NEW VIEW -testing-> RIGHT WAY -systematize-> BOON -return-> WORLD OF MASTERY.
+# FRAMEWORK. The repeating SKELETON is the brand — but only the parts a
+# stranger understands on sight. Isaac 2026-07-12 on the old spine line +
+# arrow transition markers: "weird as fuck ... your marketing register is
+# continually assuming the user knows something they dont. You have to design
+# the experience of reading the blog so that it is repetitive in a way that
+# explains how the blog writer works without ever explaining it, except in
+# this post [the blog-writer post]." So: plain-English stage HEADINGS repeat
+# post after post (the implicit teaching); the ladder-map spine + "— crossing →"
+# notation are NOT rendered; the format is explained explicitly ONLY in the
+# blog-writer post's own content.
 _FIXPOINT_LADDER = [
-    # (visible stage heading, core field, transition label INTO the next stage)
-    ("STATUS QUO", "status_quo", None),
-    ("THE DEBATE", "debate", "crossing"),
-    ("THE TRIALS", "trials", "obstacles"),
-    ("THE NEW VIEW", "new_view", "testing"),
-    ("THE RIGHT WAY", "right_way", "systematize"),
-    ("THE BOON", "the_boon", "return"),
-    ("THE WORLD OF MASTERY", "world_of_mastery", None),
+    # (visible stage heading, core field)
+    ("STATUS QUO", "status_quo"),
+    ("THE DEBATE", "debate"),
+    ("THE TRIALS", "trials"),
+    ("THE NEW VIEW", "new_view"),
+    ("THE RIGHT WAY", "right_way"),
+    ("THE BOON", "the_boon"),
+    ("THE WORLD OF MASTERY", "world_of_mastery"),
 ]
 _FIXPOINT_REQUIRED = (
     ["hook", "overview_pain", "overview_solution", "overview_dream",
      "framework_statement", "build_time"]
-    + [f for _h, f, _t in _FIXPOINT_LADDER]
+    + [f for _h, f in _FIXPOINT_LADDER]
 )
 
 
 def render_fixpoint_post(core, funnel_url: str | None = None) -> str:
     """THE ONE INVARIANT POST FORMAT — OVERVIEW + JOURNEY + FRAMEWORK.
 
-    Every stage heading and every transition label is rendered VISIBLE —
-    the explicit hero's-journey pattern is the brand. All links are real
-    markdown anchors (bare URLs never autolink on the site — live-found).
-    Raises loudly on any missing fixpoint field: no fallbacks, a fixpoint
-    post is complete or it does not render.
+    The seven stage headings render VISIBLE and identical in every post —
+    the repetition itself teaches the format (never notation a stranger
+    can't parse; the spine line + arrow transition markers were removed per
+    Isaac 2026-07-12). All links are real markdown anchors (bare URLs never
+    autolink on the site — live-found). Raises loudly on any missing
+    fixpoint field: no fallbacks, a fixpoint post is complete or it does
+    not render.
     """
     missing = [f for f in _FIXPOINT_REQUIRED if not getattr(core, f, None)]
     if missing:
@@ -173,16 +180,11 @@ def render_fixpoint_post(core, funnel_url: str | None = None) -> str:
         f"**My solution:** {core.overview_solution}",
     ]))
 
-    # ── THE JOURNEY: the ladder map first (the visible machine), then the stages ──
-    ladder_map = ("*STATUS QUO → THE DEBATE —crossing→ THE TRIALS —obstacles→ "
-                  "THE NEW VIEW —testing→ THE RIGHT WAY —systematize→ THE BOON "
-                  "—return→ THE WORLD OF MASTERY*")
-    journey = ["## THE JOURNEY", ladder_map]
-    for heading, field, transition in _FIXPOINT_LADDER:
+    # ── THE JOURNEY: the seven plain-English stage headings, nothing cryptic ──
+    journey = ["## THE JOURNEY"]
+    for heading, field in _FIXPOINT_LADDER:
         journey.append(f"### {heading}")
         journey.append(getattr(core, field))
-        if transition:
-            journey.append(f"*— {transition} →*")
     parts.append("\n\n".join(journey))
 
     # ── THE FRAMEWORK: WE SOLVED THIS + the facts, every link a real anchor ──

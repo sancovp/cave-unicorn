@@ -264,6 +264,16 @@ def publish_file(md_path: str, cfg: Dict[str, Any],
     rel_blog = cfg["blog_dir"]
     committed = pushed = False
     if commit:
+        # git commit lands on the CHECKED-OUT branch while push targets
+        # cfg["branch"] — on the wrong checkout the commit strands and the push
+        # silently no-ops the stale local branch (proven live 2026-07-12, the
+        # publish that landed on a work branch and never reached the site).
+        current_branch = _git(site_root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+        if current_branch != cfg["branch"]:
+            raise RuntimeError(
+                f"site checkout {site_root} is on branch {current_branch!r}, not the "
+                f"configured publish branch {cfg['branch']!r} — refusing to commit"
+            )
         _git(site_root, "add", f"{rel_blog}/{slug}.html", f"{rel_blog}/index.html")
         status = _git(site_root, "status", "--porcelain",
                       f"{rel_blog}/{slug}.html", f"{rel_blog}/index.html")

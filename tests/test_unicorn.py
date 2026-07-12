@@ -195,6 +195,26 @@ class TestPublishFile:
         idx = (blog / "index.html").read_text()
         assert "A brand new hook." in idx
 
+    def test_commit_refuses_wrong_branch(self, tmp_path):
+        # Regression: commit lands on the CHECKED-OUT branch while push targets
+        # cfg["branch"], so publishing from a work-branch checkout stranded the
+        # commit and no-op-pushed stale main, reporting ok (live bug 2026-07-12).
+        import subprocess
+        blog, md, cfg = self._site(tmp_path)
+        site_root = str(tmp_path / "site")
+        def git(*args):
+            subprocess.run(["git", "-C", site_root, *args], check=True,
+                           capture_output=True)
+        git("init", "-b", cfg["branch"])
+        git("config", "user.email", "t@t"); git("config", "user.name", "t")
+        git("add", "-A"); git("commit", "-m", "init")
+        git("checkout", "-b", "some-work-branch")
+        with pytest.raises(RuntimeError, match="not the configured publish branch"):
+            publish_file(str(md), cfg, month="July 2026", commit=True, push=False)
+        log = subprocess.run(["git", "-C", site_root, "log", "--oneline"],
+                             capture_output=True, text=True).stdout
+        assert "Publish blog" not in log  # nothing was committed
+
     def test_hook_override_and_link_map(self, tmp_path):
         blog, md, cfg = self._site(tmp_path)
         md.write_text("# Deep Dive\n\nSee [the story](./blog1.md) first.\n")
@@ -630,8 +650,11 @@ class TestJourneySuite:
 
     def test_fixpoint_post_structure_is_explicit(self):
         # Isaac 2026-07-12 (verbatim spec): ONE invariant format — OVERVIEW +
-        # JOURNEY + FRAMEWORK, the hero's-journey pattern SUPER-EXPLICIT (the
-        # visible pattern IS the brand), named stages AND named transitions.
+        # JOURNEY + FRAMEWORK, the seven plain-English stage headings repeating
+        # in every post. Isaac 2026-07-12 (later, verbatim): the spine line +
+        # "— crossing →" arrow markers are "weird as fuck ... assuming the user
+        # knows something they dont" — notation is BANNED from the render; the
+        # repetition of the headings is what teaches the format.
         from cave_unicorn.journey_suite import render_fixpoint_post
         md = render_fixpoint_post(self._fixpoint_core(),
                                   funnel_url="https://site/funnel/x.html")
@@ -641,9 +664,10 @@ class TestJourneySuite:
                       "### THE NEW VIEW", "### THE RIGHT WAY", "### THE BOON",
                       "### THE WORLD OF MASTERY"):
             assert stage in md
-        for transition in ("*— crossing →*", "*— obstacles →*", "*— testing →*",
-                           "*— systematize →*", "*— return →*"):
-            assert transition in md
+        for notation in ("*— crossing →*", "*— obstacles →*", "*— testing →*",
+                         "*— systematize →*", "*— return →*",
+                         "*STATUS QUO → THE DEBATE —crossing→"):
+            assert notation not in md   # cryptic format vocabulary never renders
         assert "**The pain:**" in md and "**My solution:**" in md \
             and "**The dream:**" in md
         # Dream before solution ALWAYS (Isaac 2026-07-12, verbatim: "nobody
@@ -652,7 +676,6 @@ class TestJourneySuite:
         assert md.index("**The pain:**") < md.index("**The dream:**") \
             < md.index("**My solution:**")
         assert "**We solved this.**" in md
-        assert "*STATUS QUO → THE DEBATE —crossing→" in md   # the ladder map
 
     def test_fixpoint_links_are_real_anchors(self):
         # Live-found 2026-07-12: bare URLs never autolink on the site — every
