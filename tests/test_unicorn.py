@@ -701,3 +701,62 @@ class TestCli:
         out = json.loads(capsys.readouterr().out)
         assert len(out["paths"]) == 3  # site + socials + images
         assert all(Path(p).exists() for p in out["paths"])
+
+
+# ── dispatch wall-clock timeout (the 2026-07-12 hang class) ──────────────────
+# Stand-in child bodies live at MODULE level: the spawn context pickles the
+# target by reference, so the child re-imports this test module to find them.
+
+def _child_sleeper(config_kwargs, prompt, max_tool_calls, result_path):
+    import time
+    time.sleep(120)  # simulates the wedged-IPC hang: never returns in time
+
+
+def _child_ok(config_kwargs, prompt, max_tool_calls, result_path):
+    import json as _json
+    from pathlib import Path as _P
+    _P(result_path).write_text(_json.dumps({"ok": True, "error": ""}))
+
+
+def _child_crash(config_kwargs, prompt, max_tool_calls, result_path):
+    import os as _os
+    _os._exit(3)  # dies without writing a result
+
+
+class TestDispatchTimeout:
+    """run_agent must NEVER hang forever: the live 2026-07-12 hang wedged a
+    blocking IPC read ON the event-loop thread, so only the out-of-process
+    kill (child process + parent deadline) can catch the class."""
+
+    def _dispatch_mod(self, tmp_path, monkeypatch):
+        import cave_unicorn.dispatch as dispatch
+        cfg = tmp_path / "journal_agent_config.json"
+        cfg.write_text(json.dumps({
+            "model": "fake-model",
+            "extra_model_kwargs": {"anthropic_api_url": "https://fake.local"}}))
+        monkeypatch.setattr(dispatch, "MINIMAX_CONFIG_PATH", cfg)
+        return dispatch
+
+    def test_wall_clock_timeout_kills_hung_child(self, tmp_path, monkeypatch):
+        import time
+        dispatch = self._dispatch_mod(tmp_path, monkeypatch)
+        t0 = time.time()
+        ok, err, model = dispatch.run_agent(
+            "x", timeout_s=3, _child_target=_child_sleeper)
+        assert not ok
+        assert "wall-clock timeout" in err and "KILLED" in err
+        assert model == "fake-model"
+        assert time.time() - t0 < 60  # killed at the deadline, not after 120s
+
+    def test_child_result_roundtrip(self, tmp_path, monkeypatch):
+        dispatch = self._dispatch_mod(tmp_path, monkeypatch)
+        ok, err, model = dispatch.run_agent(
+            "x", timeout_s=30, _child_target=_child_ok)
+        assert ok and err == "" and model == "fake-model"
+
+    def test_child_crash_is_reported_loudly(self, tmp_path, monkeypatch):
+        dispatch = self._dispatch_mod(tmp_path, monkeypatch)
+        ok, err, _model = dispatch.run_agent(
+            "x", timeout_s=30, _child_target=_child_crash)
+        assert not ok
+        assert "without writing a result" in err and "code 3" in err
