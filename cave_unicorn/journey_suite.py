@@ -161,12 +161,16 @@ def render_fixpoint_post(core, funnel_url: str | None = None) -> str:
 
     parts = [f"# {core.journey_name}", f"**{core.hook}**"]
 
-    # ── OVERVIEW: TLDR — THIS PAIN -> MY SOLUTION -> DREAM ──
+    # ── OVERVIEW: TLDR — THIS PAIN -> DREAM -> MY SOLUTION. Dream before
+    # solution ALWAYS (Isaac 2026-07-12, verbatim: "nobody cares how the
+    # plane works they care about hawaii. they definitely dont give a single
+    # fuck about the peanuts on the flight or the seats or the pilots") —
+    # the solution leg is the ticket to the dream, never mechanism detail. ──
     parts.append("\n\n".join([
         "## OVERVIEW",
         f"**The pain:** {core.overview_pain}",
-        f"**My solution:** {core.overview_solution}",
         f"**The dream:** {core.overview_dream}",
+        f"**My solution:** {core.overview_solution}",
     ]))
 
     # ── THE JOURNEY: the ladder map first (the visible machine), then the stages ──

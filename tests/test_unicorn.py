@@ -646,6 +646,11 @@ class TestJourneySuite:
             assert transition in md
         assert "**The pain:**" in md and "**My solution:**" in md \
             and "**The dream:**" in md
+        # Dream before solution ALWAYS (Isaac 2026-07-12, verbatim: "nobody
+        # cares how the plane works they care about hawaii") — pain hooks,
+        # dream sells, the solution is the ticket and comes LAST.
+        assert md.index("**The pain:**") < md.index("**The dream:**") \
+            < md.index("**My solution:**")
         assert "**We solved this.**" in md
         assert "*STATUS QUO → THE DEBATE —crossing→" in md   # the ladder map
 
