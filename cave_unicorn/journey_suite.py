@@ -122,6 +122,82 @@ def _render_marketing_blog(blog, core, funnel_url: str | None = None) -> str:
     return "\n\n".join(parts) + "\n"
 
 
+# THE FIXPOINT POST (Isaac 2026-07-12, verbatim spec): ONE invariant blog post
+# format for all blog posts forever — a fixpoint. OVERVIEW + JOURNEY +
+# FRAMEWORK, with the hero's-journey structure SUPER-EXPLICIT — "the patterns
+# being visible IS the position/marketing/brand"; part of what is sold is THE
+# MACHINE that does hero's-journey marketing in this exact way. The JOURNEY
+# ladder, his verbatim: STATUS QUO -> DEBATE -crossing-> TRIALS -obstacles->
+# NEW VIEW -testing-> RIGHT WAY -systematize-> BOON -return-> WORLD OF MASTERY.
+_FIXPOINT_LADDER = [
+    # (visible stage heading, core field, transition label INTO the next stage)
+    ("STATUS QUO", "status_quo", None),
+    ("THE DEBATE", "debate", "crossing"),
+    ("THE TRIALS", "trials", "obstacles"),
+    ("THE NEW VIEW", "new_view", "testing"),
+    ("THE RIGHT WAY", "right_way", "systematize"),
+    ("THE BOON", "the_boon", "return"),
+    ("THE WORLD OF MASTERY", "world_of_mastery", None),
+]
+_FIXPOINT_REQUIRED = (
+    ["hook", "overview_pain", "overview_solution", "overview_dream",
+     "framework_statement", "build_time"]
+    + [f for _h, f, _t in _FIXPOINT_LADDER]
+)
+
+
+def render_fixpoint_post(core, funnel_url: str | None = None) -> str:
+    """THE ONE INVARIANT POST FORMAT — OVERVIEW + JOURNEY + FRAMEWORK.
+
+    Every stage heading and every transition label is rendered VISIBLE —
+    the explicit hero's-journey pattern is the brand. All links are real
+    markdown anchors (bare URLs never autolink on the site — live-found).
+    Raises loudly on any missing fixpoint field: no fallbacks, a fixpoint
+    post is complete or it does not render.
+    """
+    missing = [f for f in _FIXPOINT_REQUIRED if not getattr(core, f, None)]
+    if missing:
+        raise ValueError(f"fixpoint post is incomplete — missing fields: {missing}")
+
+    parts = [f"# {core.journey_name}", f"**{core.hook}**"]
+
+    # ── OVERVIEW: TLDR — THIS PAIN -> MY SOLUTION -> DREAM ──
+    parts.append("\n\n".join([
+        "## OVERVIEW",
+        f"**The pain:** {core.overview_pain}",
+        f"**My solution:** {core.overview_solution}",
+        f"**The dream:** {core.overview_dream}",
+    ]))
+
+    # ── THE JOURNEY: the ladder map first (the visible machine), then the stages ──
+    ladder_map = ("*STATUS QUO → THE DEBATE —crossing→ THE TRIALS —obstacles→ "
+                  "THE NEW VIEW —testing→ THE RIGHT WAY —systematize→ THE BOON "
+                  "—return→ THE WORLD OF MASTERY*")
+    journey = ["## THE JOURNEY", ladder_map]
+    for heading, field, transition in _FIXPOINT_LADDER:
+        journey.append(f"### {heading}")
+        journey.append(getattr(core, field))
+        if transition:
+            journey.append(f"*— {transition} →*")
+    parts.append("\n\n".join(journey))
+
+    # ── THE FRAMEWORK: WE SOLVED THIS + the facts, every link a real anchor ──
+    fw = ["## THE FRAMEWORK", f"**We solved this.** {core.framework_statement}"]
+    repo = core.github_url or core.plugin_url
+    if repo:
+        fw.append(f"**See it on GitHub:** [{repo.split('//', 1)[-1]}]({repo})")
+    fw.append(f"**Build it yourself:** {core.build_time}")
+    if core.deep_dive_url:
+        fw.append("**How this fits the whole system:** "
+                  f"[the global view]({core.deep_dive_url})")
+    funnel = funnel_url or core.deep_dive_url or core.plugin_url
+    if funnel:
+        fw.append(f"**[Start here]({funnel})**")
+    parts.append("\n\n".join(fw))
+
+    return "\n\n".join(parts) + "\n"
+
+
 # The Isaac-APPROVED story-beat headings (the live skilltree chapter opener he
 # passed): content-shaped STORY BEATS, never renderer-mechanic slot names. An
 # agent may override per blog with headings AUTHORED from the content.

@@ -613,6 +613,60 @@ class TestJourneySuite:
         md = render_chapter_blog(self._core_obj())
         assert "**Start here:" not in md
 
+    def _fixpoint_core(self, **over):
+        fills = dict(
+            hook="An authored hook.",
+            overview_pain="core overview_pain text.",
+            overview_solution="core overview_solution text.",
+            overview_dream="core overview_dream text.",
+            debate="core debate text.", trials="core trials text.",
+            new_view="core new_view text.", right_way="core right_way text.",
+            world_of_mastery="core world_of_mastery text.",
+            framework_statement="core framework_statement text.",
+            build_time="under a day",
+            github_url="https://github.com/org/thing")
+        fills.update(over)
+        return self._core_obj(**fills)
+
+    def test_fixpoint_post_structure_is_explicit(self):
+        # Isaac 2026-07-12 (verbatim spec): ONE invariant format — OVERVIEW +
+        # JOURNEY + FRAMEWORK, the hero's-journey pattern SUPER-EXPLICIT (the
+        # visible pattern IS the brand), named stages AND named transitions.
+        from cave_unicorn.journey_suite import render_fixpoint_post
+        md = render_fixpoint_post(self._fixpoint_core(),
+                                  funnel_url="https://site/funnel/x.html")
+        for section in ("## OVERVIEW", "## THE JOURNEY", "## THE FRAMEWORK"):
+            assert section in md
+        for stage in ("### STATUS QUO", "### THE DEBATE", "### THE TRIALS",
+                      "### THE NEW VIEW", "### THE RIGHT WAY", "### THE BOON",
+                      "### THE WORLD OF MASTERY"):
+            assert stage in md
+        for transition in ("*— crossing →*", "*— obstacles →*", "*— testing →*",
+                           "*— systematize →*", "*— return →*"):
+            assert transition in md
+        assert "**The pain:**" in md and "**My solution:**" in md \
+            and "**The dream:**" in md
+        assert "**We solved this.**" in md
+        assert "*STATUS QUO → THE DEBATE —crossing→" in md   # the ladder map
+
+    def test_fixpoint_links_are_real_anchors(self):
+        # Live-found 2026-07-12: bare URLs never autolink on the site — every
+        # link must be a markdown anchor, and the funnel close is a LINK.
+        from cave_unicorn.journey_suite import render_fixpoint_post
+        core = self._fixpoint_core(
+            deep_dive_url="https://site/blog/x-global.html")
+        md = render_fixpoint_post(core, funnel_url="https://site/funnel/x.html")
+        assert "[github.com/org/thing](https://github.com/org/thing)" in md
+        assert "[the global view](https://site/blog/x-global.html)" in md
+        assert "**[Start here](https://site/funnel/x.html)**" in md
+        assert "**Start here: http" not in md          # the dead-text form is banned
+        assert md.count("[Start here]") == 1
+
+    def test_fixpoint_fails_loud_on_missing_fields(self):
+        from cave_unicorn.journey_suite import render_fixpoint_post
+        with pytest.raises(ValueError, match="trials"):
+            render_fixpoint_post(self._fixpoint_core(trials=None))
+
 
 class TestCli:
     def test_init_show_set(self, tmp_path, monkeypatch, capsys):
