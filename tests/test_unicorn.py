@@ -324,6 +324,203 @@ class TestSeam:
         path = emit_spec(spec, automations_dir=str(tmp_path))
         assert json.loads(Path(path).read_text())["name"] == "unicorn_socials_pack"
 
+    def test_video_automation_spec_shape(self):
+        # The schema exists and matches the live registration shape — but it
+        # is INERT: nothing auto-emits it (see test_enable_automation_all_
+        # excludes_video below).
+        from cave_unicorn.cave_seam import build_video_render_automation
+        spec = build_video_render_automation()
+        assert set(spec) == {"name", "description", "schedule", "code_pointer",
+                             "code_args", "one_shot", "priority", "tags", "enabled"}
+        assert spec["code_pointer"] == "cave_unicorn.video.fire_video_render"
+        assert spec["name"] == "unicorn_video_render"
+        assert re.fullmatch(r"[\d*/, -]+", spec["schedule"])
+
+
+# Module-level (NOT nested in a test method): the spawn multiprocessing
+# context pickles _child_target BY REFERENCE (module + qualname), so the
+# child process re-imports this test module to find them — a local closure
+# cannot be pickled. Mirrors test_blog_organ_nightly.py's _child_sleeper/
+# _child_ok exactly (same class of dispatch, same test hazard).
+
+def _video_child_ok(config_kwargs, prompt, max_tool_calls, result_path):
+    import json as _json
+    from pathlib import Path as _P
+    _P(result_path).write_text(_json.dumps({"ok": True, "error": ""}))
+
+
+def _video_child_records_model(config_kwargs, prompt, max_tool_calls, result_path):
+    import json as _json
+    from pathlib import Path as _P
+    _P(result_path).write_text(_json.dumps(
+        {"ok": True, "error": "", "seen_model": config_kwargs["model"]}))
+
+
+def _video_child_sleeper(config_kwargs, prompt, max_tool_calls, result_path):
+    import time as _t
+    _t.sleep(120)  # simulates the wedged-IPC hang: never returns in time
+
+
+class TestVideo:
+    def test_build_prompt_fills(self):
+        from cave_unicorn import video
+        p = video.build_prompt("/x/blog.md", "/q/slug/images", "/q/slug/video")
+        assert "/x/blog.md" in p and "/q/slug/images" in p and "/q/slug/video" in p
+        assert "final.mp4" in p and "{blog_md_path}" not in p
+
+    def test_render_freshness_gate_rejects_stale_artifact(self, tmp_path,
+                                                          monkeypatch):
+        # The blog organ's 2026-07-12 law carried over: a final.mp4 left by a
+        # PRIOR run (mtime before this dispatch) must NOT pass — agent claims
+        # ok, artifact is stale -> failed.
+        import os
+        from cave_unicorn import video
+        blog = tmp_path / "blog.md"
+        blog.write_text("# T\n\nBody.\n")
+        out = tmp_path / "video"
+        out.mkdir()
+        stale = out / "final.mp4"
+        stale.write_bytes(b"old mp4")
+        old = stale.stat().st_mtime - 3600
+        os.utime(stale, (old, old))
+        monkeypatch.setattr(video, "run_heaven_agent",
+                            lambda *a, **k: {"ok": True, "error": ""})
+        report = video.render_video_for_blog(str(blog), out_dir=str(out))
+        assert report["status"] == "failed"
+        assert "not freshly written" in report["error"]
+
+    def test_render_success_when_fresh_video_exists(self, tmp_path, monkeypatch):
+        from cave_unicorn import video
+        blog = tmp_path / "blog.md"
+        blog.write_text("# T\n\nBody.\n")
+        out = tmp_path / "video"
+
+        def fake_agent(prompt, timeout=1):
+            (out / "final.mp4").write_bytes(b"mp4")
+            return {"ok": True, "error": ""}
+
+        monkeypatch.setattr(video, "run_heaven_agent", fake_agent)
+        report = video.render_video_for_blog(str(blog), out_dir=str(out))
+        assert report["status"] == "rendered"
+        assert report["video_path"] == str(out / "final.mp4")
+
+    def test_out_dir_defaults_to_images_sibling(self, tmp_path, monkeypatch):
+        # images land in <pack dir>/images; the video is its sibling
+        # <pack dir>/video, so one slug's artifacts stay together.
+        from cave_unicorn import video
+        blog = tmp_path / "blog.md"
+        blog.write_text("# T\n")
+        pack = tmp_path / "queue" / "slug"
+        images = pack / "images"
+        images.mkdir(parents=True)
+
+        def fake_agent(prompt, timeout=1):
+            (pack / "video" / "final.mp4").write_bytes(b"mp4")
+            return {"ok": True, "error": ""}
+
+        monkeypatch.setattr(video, "run_heaven_agent", fake_agent)
+        report = video.render_video_for_blog(str(blog), images_dir=str(images))
+        assert report["status"] == "rendered"
+        assert report["video_dir"] == str(pack / "video")
+
+    def test_render_missing_blog_fails_loud(self, tmp_path):
+        from cave_unicorn import video
+        report = video.render_video_for_blog(str(tmp_path / "nope.md"))
+        assert report["status"] == "failed" and "blog md not found" in report["error"]
+
+    def test_missing_minimax_config_refuses(self, monkeypatch, tmp_path):
+        # No journal_agent_config.json -> gate loudly, never fall back to
+        # any other dispatch mechanism.
+        from cave_unicorn import video
+        monkeypatch.setattr(video, "MINIMAX_CONFIG_PATH", tmp_path / "missing.json")
+        monkeypatch.delenv("VIDEO_ORGAN_MODEL", raising=False)
+        res = video.run_heaven_agent("p", timeout=1)
+        assert res["ok"] is False and "minimax model config missing" in res["error"]
+
+    def test_video_organ_model_overrides_shared_config(self, monkeypatch):
+        # VIDEO_ORGAN_MODEL overrides the shared WD journal_agent_config model
+        # (mirrors blog organ's BLOG_ORGAN_MODEL override), passed through to
+        # the child's config_kwargs. Plumbing only — proves the ENV -> config
+        # wiring, not agent quality (that needs a real run; see rule 03 in
+        # onionmorph/.claude/rules — run the app, don't mock the framework).
+        from cave_unicorn import video
+        monkeypatch.setattr(video, "_minimax_model_config",
+                            lambda: {"model": "MiniMax-M2.7-highspeed",
+                                     "extra_model_kwargs":
+                                         {"anthropic_api_url": "https://fake.local"}})
+        monkeypatch.setenv("VIDEO_ORGAN_MODEL", "MiniMax-M3")
+        res = video.run_heaven_agent("p", timeout=5,
+                                     _child_target=_video_child_records_model)
+        assert res["ok"] is True
+
+    def test_wall_clock_timeout_kills_hung_child(self, monkeypatch):
+        # run_heaven_agent must NEVER hang forever — same wedged-IPC-read
+        # hang class the blog organ's dispatch was fixed for 2026-07-12; only
+        # the out-of-process kill catches it. Plumbing only.
+        import time
+        from cave_unicorn import video
+        monkeypatch.setattr(video, "_minimax_model_config",
+                            lambda: {"model": "fake-model",
+                                     "extra_model_kwargs":
+                                         {"anthropic_api_url": "https://fake.local"}})
+        t0 = time.time()
+        res = video.run_heaven_agent("p", timeout=3, _child_target=_video_child_sleeper)
+        assert res["ok"] is False
+        assert "wall-clock timeout" in res["error"] and "KILLED" in res["error"]
+        assert time.time() - t0 < 60
+
+    def test_scan_flips_video_properties(self, tmp_path, monkeypatch):
+        # Scan mode: images_rendered node -> rendered -> flip video_rendered/
+        # video_path (+ clear a stale video_error); failure -> flip video_error.
+        from cave_unicorn import video
+
+        monkeypatch.setattr(
+            video, "render_video_for_blog",
+            lambda md, images_dir="", out_dir=None:
+                {"status": "rendered", "video_path": "/v/final.mp4",
+                 "video_dir": "/v"})
+        flips = []
+        monkeypatch.setattr(
+            video, "_carton",
+            lambda: (object(),
+                     lambda concept, props, mode="merge", shared_connection=None:
+                         flips.append((concept, props)),
+                     None))
+        monkeypatch.setattr(
+            video, "_images_without_video",
+            lambda graph: [{"concept": "Blog_X",
+                            "props": {"output_path": "/x/blog.md",
+                                      "images_dir": "/q/slug/images",
+                                      "video_error": "old failure"}}])
+        out = video.fire_video_render()
+        assert out["status"] == "done" and out["rendered"] == 1
+        (concept, props), = flips
+        assert concept == "Blog_X"
+        assert props["video_rendered"] is True
+        assert props["video_path"] == "/v/final.mp4"
+        assert props["video_error"] == ""  # stale error cleared on success
+
+    def test_scan_records_error_on_failure(self, monkeypatch):
+        from cave_unicorn import video
+        monkeypatch.setattr(
+            video, "render_video_for_blog",
+            lambda md, images_dir="", out_dir=None:
+                {"status": "failed", "error": "boom", "video_path": ""})
+        flips = []
+        monkeypatch.setattr(
+            video, "_carton",
+            lambda: (object(),
+                     lambda concept, props, mode="merge", shared_connection=None:
+                         flips.append((concept, props)),
+                     None))
+        monkeypatch.setattr(
+            video, "_images_without_video",
+            lambda graph: [{"concept": "Blog_X",
+                            "props": {"output_path": "/x/blog.md"}}])
+        out = video.fire_video_render()
+        assert out["status"] == "done" and out["failed"] == 1
+        assert flips == [("Blog_X", {"video_error": "boom"})]
+
 
 class TestSocials:
     def test_build_prompt_fills_placeholders(self):
@@ -695,6 +892,49 @@ class TestJourneySuite:
         with pytest.raises(ValueError, match="trials"):
             render_fixpoint_post(self._fixpoint_core(trials=None))
 
+    def test_receipts_section_renders_when_proof_slots_filled(self):
+        # GAS proof slots (Isaac 2026-07-13 phase-A: "even just copying the
+        # proof slots will help"): claim + receipted premises + theme render
+        # as a visible THE RECEIPTS section between JOURNEY and FRAMEWORK.
+        from cave_unicorn.journey_suite import render_fixpoint_post
+        core = self._fixpoint_core(
+            grand_argument_claim="An overnight content chain is buildable.",
+            premises=["The organs fired nightly|the 2026-07-12 blog run",
+                      "The posts went live untouched|the site commit log"],
+            theme="In order to publish daily, you must learn to trust "
+                  "gated automation.")
+        md = render_fixpoint_post(core)
+        assert "## THE RECEIPTS" in md
+        assert "**The claim:** An overnight content chain is buildable." in md
+        assert "- The organs fired nightly — *receipt:* the 2026-07-12 blog run" in md
+        assert "**The lesson:** In order to publish daily" in md
+        # placement: after the journey, before the framework close
+        assert md.index("## THE JOURNEY") < md.index("## THE RECEIPTS") \
+            < md.index("## THE FRAMEWORK")
+
+    def test_receipts_section_absent_when_slots_absent(self):
+        # absent = section absent — no fallbacks, no empty heading.
+        from cave_unicorn.journey_suite import render_fixpoint_post
+        md = render_fixpoint_post(self._fixpoint_core())
+        assert "THE RECEIPTS" not in md and "**The claim:**" not in md
+
+    def test_receipts_partial_fill_fails_loud(self):
+        from cave_unicorn.journey_suite import render_fixpoint_post
+        with pytest.raises(ValueError, match="partially filled.*premises"):
+            render_fixpoint_post(self._fixpoint_core(
+                grand_argument_claim="A claim with no premises."))
+        # theme floating alone is also a partial proof fill
+        with pytest.raises(ValueError, match="partially filled"):
+            render_fixpoint_post(self._fixpoint_core(
+                theme="In order to X, you must learn Y."))
+
+    def test_receipts_malformed_premise_fails_loud(self):
+        from cave_unicorn.journey_suite import render_fixpoint_post
+        with pytest.raises(ValueError, match="malformed premise"):
+            render_fixpoint_post(self._fixpoint_core(
+                grand_argument_claim="A claim.",
+                premises=["a premise with no receipt separator"]))
+
 
 class TestCli:
     def test_init_show_set(self, tmp_path, monkeypatch, capsys):
@@ -724,6 +964,22 @@ class TestCli:
         out = json.loads(capsys.readouterr().out)
         assert len(out["paths"]) == 3  # site + socials + images
         assert all(Path(p).exists() for p in out["paths"])
+
+    def test_enable_automation_all_excludes_video(self, tmp_path, monkeypatch,
+                                                  capsys):
+        # INERT law (phase-A 2026-07-13): the video organ is enabled ONLY by
+        # the explicit --which video hand; a routine --which all re-emit must
+        # never flip it on as a side effect.
+        monkeypatch.setenv("CAVE_AUTOMATIONS_DIR", str(tmp_path))
+        assert cli.main(["enable-automation", "--which", "all"]) == 0
+        out = json.loads(capsys.readouterr().out)
+        assert not any("video" in p for p in out["paths"])
+        assert not (tmp_path / "unicorn_video_render.json").exists()
+        assert cli.main(["enable-automation", "--which", "video"]) == 0
+        out2 = json.loads(capsys.readouterr().out)
+        assert out2["paths"] == [str(tmp_path / "unicorn_video_render.json")]
+        data = json.loads((tmp_path / "unicorn_video_render.json").read_text())
+        assert data["code_pointer"] == "cave_unicorn.video.fire_video_render"
 
 
 # ── dispatch wall-clock timeout (the 2026-07-12 hang class) ──────────────────

@@ -151,6 +151,44 @@ _FIXPOINT_REQUIRED = (
 )
 
 
+def _render_receipts_section(core) -> str:
+    """THE RECEIPTS — the GAS proof slots rendered visible (Isaac 2026-07-13,
+    phase-A: "GAS proofs / even just copying the proof slots will help").
+
+    Renders ONLY when the proof pair is present (grand_argument_claim AND
+    premises) — absent = section absent, no fallbacks. A PARTIAL fill (one of
+    the pair, or theme floating alone, or a premise entry without its
+    '|receipt') raises loudly: a proof section is complete or it does not
+    render. Each premise entry is 'premise|receipt' (the skill_urls 'a|b'
+    convention); the receipt is the scene that instantiates the premise, per
+    the GAS cert ladder (foundation.pl: grand_argument premises are
+    instantiated by scenes; theme is the claim proved by the grand argument).
+    """
+    claim = getattr(core, "grand_argument_claim", None)
+    premises = getattr(core, "premises", None)
+    theme = getattr(core, "theme", None)
+    if not (claim or premises or theme):
+        return ""
+    if not (claim and premises):
+        missing = [n for n, v in (("grand_argument_claim", claim),
+                                  ("premises", premises)) if not v]
+        raise ValueError(
+            "GAS proof slots partially filled — the receipts section needs "
+            f"grand_argument_claim AND premises; missing: {missing}")
+
+    lines = ["## THE RECEIPTS", f"**The claim:** {claim}"]
+    for entry in premises:
+        if "|" not in entry:
+            raise ValueError(
+                "malformed premise entry (expected 'premise|receipt'): "
+                f"{entry!r}")
+        premise, receipt = entry.split("|", 1)
+        lines.append(f"- {premise.strip()} — *receipt:* {receipt.strip()}")
+    if theme:
+        lines.append(f"**The lesson:** {theme}")
+    return "\n\n".join(lines)
+
+
 def render_fixpoint_post(core, funnel_url: str | None = None) -> str:
     """THE ONE INVARIANT POST FORMAT — OVERVIEW + JOURNEY + FRAMEWORK.
 
@@ -186,6 +224,10 @@ def render_fixpoint_post(core, funnel_url: str | None = None) -> str:
         journey.append(f"### {heading}")
         journey.append(getattr(core, field))
     parts.append("\n\n".join(journey))
+
+    receipts = _render_receipts_section(core)
+    if receipts:
+        parts.append(receipts)
 
     # ── THE FRAMEWORK: WE SOLVED THIS + the facts, every link a real anchor ──
     fw = ["## THE FRAMEWORK", f"**We solved this.** {core.framework_statement}"]

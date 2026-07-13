@@ -95,6 +95,34 @@ def build_socials_images_automation(
     }
 
 
+def build_video_render_automation(
+    schedule: str = "7 4 * * *",  # nightly 04:07 — after the 03:37 image render
+    code_args: Optional[Dict[str, Any]] = None,
+    name: str = "unicorn_video_render",
+) -> Dict[str, Any]:
+    """AutomationSchema spec for the video organ (blog post -> explainer video).
+
+    INERT BY DEFAULT (phase-A slop hookup, 2026-07-13): this builder exists so
+    the schema is real and tested, but NOTHING auto-emits it into the
+    hot-reload dir — the commander enables it explicitly via
+    ``cave-unicorn enable-automation --which video`` (deliberately NOT part of
+    ``--which all``)."""
+    return {
+        "name": name,
+        "description": "UNICORN video organ: images_rendered blogs without a "
+                       "video -> claude -p video-producer agent (remotion + "
+                       "TTS + excalidraw + ffmpeg) renders final.mp4, freshness"
+                       "-gated -> flip video_rendered on the node.",
+        "schedule": schedule,
+        "code_pointer": "cave_unicorn.video.fire_video_render",
+        "code_args": dict(code_args or {}),
+        "one_shot": False,
+        "priority": 4,
+        "tags": ["publishing", "video", "unicorn", "distribution"],
+        "enabled": True,
+    }
+
+
 def register_with_cave(cave_agent: Any, schedule: str = DEFAULT_SCHEDULE,
                        code_args: Optional[Dict[str, Any]] = None,
                        persist: bool = True) -> bool:

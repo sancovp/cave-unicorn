@@ -96,6 +96,11 @@ def _cmd_enable_automation(args: argparse.Namespace) -> int:
         paths.append(cave_seam.emit_spec(cave_seam.build_socials_pack_automation()))
     if args.which in ("images", "all"):
         paths.append(cave_seam.emit_spec(cave_seam.build_socials_images_automation()))
+    if args.which == "video":
+        # Deliberately NOT in "all": the video organ ships INERT (phase-A
+        # 2026-07-13) — enabling it is the commander's explicit hand, and a
+        # routine `--which all` re-emit must never flip it on as a side effect.
+        paths.append(cave_seam.emit_spec(cave_seam.build_video_render_automation()))
     _print({"status": "emitted", "paths": paths})
     return 0
 
@@ -182,8 +187,11 @@ def _add_socials_and_automation_commands(sub) -> None:
     p_auto.add_argument("--schedule", default=cave_seam.DEFAULT_SCHEDULE)
     p_auto.add_argument("--push", action="store_true",
                         help="site automation publishes with push=true")
-    p_auto.add_argument("--which", choices=["site", "socials", "images", "all"],
-                        default="site")
+    p_auto.add_argument("--which",
+                        choices=["site", "socials", "images", "video", "all"],
+                        default="site",
+                        help="'all' = site+socials+images; 'video' is enabled "
+                             "ONLY explicitly (ships inert)")
     p_auto.set_defaults(func=_cmd_enable_automation)
 
     p_img = sub.add_parser("render-images",
