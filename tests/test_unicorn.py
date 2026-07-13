@@ -356,6 +356,19 @@ def _video_child_records_model(config_kwargs, prompt, max_tool_calls, result_pat
         {"ok": True, "error": "", "seen_model": config_kwargs["model"]}))
 
 
+def _video_child_checks_persona(config_kwargs, prompt, max_tool_calls, result_path):
+    # ok only if the ANIMATOR persona actually reached the agent config's
+    # system_prompt (child process — signal pass/fail through the result file)
+    import json as _json
+    from pathlib import Path as _P
+    sp = config_kwargs.get("system_prompt", "")
+    ok = ("animates every single" in sp and "/tmp/remotion-test" in sp
+          and "NEVER develop or even use Remotion" in sp)
+    _P(result_path).write_text(_json.dumps(
+        {"ok": ok,
+         "error": "" if ok else f"persona missing from system_prompt: {sp[:80]!r}"}))
+
+
 def _video_child_sleeper(config_kwargs, prompt, max_tool_calls, result_path):
     import time as _t
     _t.sleep(120)  # simulates the wedged-IPC hang: never returns in time
@@ -452,6 +465,20 @@ class TestVideo:
         res = video.run_heaven_agent("p", timeout=5,
                                      _child_target=_video_child_records_model)
         assert res["ok"] is True
+
+    def test_animator_persona_reaches_agent_system_prompt(self, monkeypatch):
+        # Isaac 2026-07-13 (verbatim): "this has to be EXPLICIT in the system
+        # prompt of the agent, as its core way its persona works." The child
+        # fake fails the run unless the ANIMATOR persona + one-directory law +
+        # skills-only law are IN config_kwargs["system_prompt"].
+        from cave_unicorn import video
+        monkeypatch.setattr(video, "_minimax_model_config",
+                            lambda: {"model": "MiniMax-M2.7-highspeed",
+                                     "extra_model_kwargs":
+                                         {"anthropic_api_url": "https://fake.local"}})
+        res = video.run_heaven_agent("p", timeout=5,
+                                     _child_target=_video_child_checks_persona)
+        assert res["ok"] is True, res["error"]
 
     def test_wall_clock_timeout_kills_hung_child(self, monkeypatch):
         # run_heaven_agent must NEVER hang forever — same wedged-IPC-read

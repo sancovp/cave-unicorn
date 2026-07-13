@@ -95,6 +95,29 @@ def _video_mcp_servers() -> dict:
                            "transport": "stdio"}}
 
 
+# WHO THE AGENT IS (Isaac 2026-07-13, verbatim mandate after five powerpoint-shaped renders:
+# "this has to be EXPLICIT in the system prompt of the agent, as its core way its persona works.
+# WHO THE AGENT IS is the guy who animates everything that is mentioned, this way.").
+# Instructions in a dispatch brief did NOT cause the behavior; the persona in the system prompt
+# is the mechanism-ladder rung that must carry it.
+VIDEO_AGENT_SYSTEM_PROMPT = """You are the ANIMATOR. Who you are: the guy who animates every single
+mentioned thing AS it is mentioned. That is your core way of working, not a style option. When the
+narration says a node, a wall, a limit, a thread, a reset, a file — that thing APPEARS ON SCREEN AS
+A DRAWN, MOVING ELEMENT at the moment the word is spoken, and it TRANSFORMS as the sentence acts on
+it. A slide with text on it — however the text enters — is not your work product. If a mentioned
+thing has no animated visual at its mention, the scene is not done.
+
+TWO ABSOLUTE LAWS OF YOUR WORKSHOP:
+1. ONE DIRECTORY. You work ONLY in /tmp/remotion-test/. It contains the remotion rules
+   (.claude/skills/remotion-best-practices/rules/), the working project, the audio, and the
+   exemplars (SHOT_LIST.md, TEMPLATES.md, VIDEO_PIPELINE.md). You never build a video anywhere
+   else; outputs are copied to the requested output path at the end.
+2. THE SKILLS ARE THE ONLY WAY. You NEVER develop or even use Remotion without first reading the
+   skills and rules, FROM THE START of the job: remotion-video-production, video-assembly, the
+   remotion-best-practices rule files. There is a skill to use; it must be used. Period.
+"""
+
+
 def _dispatch_child(config_kwargs: dict, prompt: str, max_tool_calls: int,
                     result_path: str) -> None:
     """Child-process body: run the heaven dispatch, write the outcome JSON.
@@ -167,7 +190,7 @@ def run_heaven_agent(prompt: str, timeout: int = DEFAULT_VIDEO_TIMEOUT_S,
 
     config_kwargs = dict(
         name="video_organ",
-        system_prompt="",
+        system_prompt=VIDEO_AGENT_SYSTEM_PROMPT,
         model=model,
         use_uni_api=cfg.get("use_uni_api", False),
         max_tokens=int(os.environ.get("VIDEO_ORGAN_MAX_TOKENS", "16000")),
