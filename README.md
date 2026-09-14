@@ -2,9 +2,9 @@
 
 <!-- SCALABLE-PUBLISHING:AUTOGEN START (managed block — do not edit between these markers) -->
 
-![Stars](https://img.shields.io/github/stars/sancovp/cave-unicorn.svg?style=social) ![Updated](https://img.shields.io/badge/updated-2026_09_12-lightgrey.svg)
+![Stars](https://img.shields.io/github/stars/sancovp/cave-unicorn.svg?style=social) ![Updated](https://img.shields.io/badge/updated-2026_09_13-lightgrey.svg)
 
-⭐ 1 stars • 🕑 Updated 2026-09-12
+⭐ 1 stars • 🕑 Updated 2026-09-13
 
 📦 Auto-published from the monorepo • [CHANGELOG](./CHANGELOG.md) • [sancovp/cave-unicorn](https://github.com/sancovp/cave-unicorn)
 
