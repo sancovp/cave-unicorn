@@ -17,8 +17,8 @@ INERT BY DEFAULT: the CronAutomation schema exists
 hot-reload dir — the commander enables it explicitly
 (``cave-unicorn enable-automation --which video``).
 
-DISPATCH (Isaac 2026-07-13, correcting a wrong first build — verbatim: "why
-is that running on anthropic? it needs to run on minimax. on heaven... wtf is
+DISPATCH (Isaac 2026-07-13, correcting a wrong first build — his terms: "why
+is that running on anthropic? it needs to run on minimax. on heaven... what is
 run_claude_agent?"): this dispatches on HEAVEN/MINIMAX, the EXACT SAME proven
 pattern as ``cave/core/publishing/blog_organ_nightly.py`` (which itself
 mirrors the WakingDreamer service agents) — a ``BaseHeavenAgent`` built from a

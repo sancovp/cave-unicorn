@@ -875,8 +875,8 @@ class TestJourneySuite:
     def test_fixpoint_post_structure_is_explicit(self):
         # Isaac 2026-07-12 (verbatim spec): ONE invariant format — OVERVIEW +
         # JOURNEY + FRAMEWORK, the seven plain-English stage headings repeating
-        # in every post. Isaac 2026-07-12 (later, verbatim): the spine line +
-        # "— crossing →" arrow markers are "weird as fuck ... assuming the user
+        # in every post. Isaac 2026-07-12 (later, his terms): the spine line +
+        # "— crossing →" arrow markers are "weird ... assuming the user
         # knows something they dont" — notation is BANNED from the render; the
         # repetition of the headings is what teaches the format.
         from cave_unicorn.journey_suite import render_fixpoint_post

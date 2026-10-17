@@ -126,7 +126,7 @@ def _render_marketing_blog(blog, core, funnel_url: str | None = None) -> str:
 # format for all blog posts forever — a fixpoint. OVERVIEW + JOURNEY +
 # FRAMEWORK. The repeating SKELETON is the brand — but only the parts a
 # stranger understands on sight. Isaac 2026-07-12 on the old spine line +
-# arrow transition markers: "weird as fuck ... your marketing register is
+# arrow transition markers: "weird ... your marketing register is
 # continually assuming the user knows something they dont. You have to design
 # the experience of reading the blog so that it is repetitive in a way that
 # explains how the blog writer works without ever explaining it, except in
@@ -207,9 +207,9 @@ def render_fixpoint_post(core, funnel_url: str | None = None) -> str:
     parts = [f"# {core.journey_name}", f"**{core.hook}**"]
 
     # ── OVERVIEW: TLDR — THIS PAIN -> DREAM -> MY SOLUTION. Dream before
-    # solution ALWAYS (Isaac 2026-07-12, verbatim: "nobody cares how the
-    # plane works they care about hawaii. they definitely dont give a single
-    # fuck about the peanuts on the flight or the seats or the pilots") —
+    # solution ALWAYS (Isaac 2026-07-12, his terms: "nobody cares how the
+    # plane works they care about hawaii. they definitely dont care at all
+    # about the peanuts on the flight or the seats or the pilots") —
     # the solution leg is the ticket to the dream, never mechanism detail. ──
     parts.append("\n\n".join([
         "## OVERVIEW",
