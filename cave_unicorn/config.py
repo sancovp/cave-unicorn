@@ -14,6 +14,13 @@ Keys (all present after ``init``):
   - ``default_tags``  : index-card tags applied when a publish gives none.
   - ``discord_announce``/``discord_channel`` : after a PUSHED publish, announce
     the live URLs in Discord via cave_discord (the announce leg; off by default).
+  - ``notify_actor``          : the brand/agent name the UPDATE WIRE posts as in the
+    "{actor} just published {thing} at {link}" line (the membership #updates stream).
+    ``null`` (the default) DISABLES the wire — it is opt-in, off by default.
+  - ``updates_guild_config``  : path to the discord guild-config JSON (the shape the
+    hydration write-back produces: token, guild_id, channels{name:id}) whose #updates
+    channel the wire posts to. ``null`` (the default) DISABLES the wire. Both keys must
+    be set for the wire to fire; either absent/null ⟹ wire silently skipped (one log line).
 
 FAIL LOUD: ``load_config`` raises if the file is absent (run ``cave-unicorn init``);
 it never invents a config silently.
@@ -36,6 +43,12 @@ DEFAULTS: Dict[str, Any] = {
     "default_tags": ["unicorn"],
     "discord_announce": False,
     "discord_channel": "coglog",
+    # The UPDATE WIRE (membership #updates stream) — opt-in, off by default.
+    # null on either DISABLES the wire (see the module docstring). A present
+    # key defaulting to null keeps the wire optional while letting the CLI
+    # `set`/`show` it and load_config not treat it as a missing required key.
+    "notify_actor": None,
+    "updates_guild_config": None,
 }
 
 

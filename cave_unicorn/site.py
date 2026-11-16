@@ -51,7 +51,7 @@ POST_TEMPLATE = """<link rel="stylesheet" href="blog-style.css">
     <p class="post-subtitle">{hook}</p>
 
 {body}
-  </article>
+  </article>{chapter_nav}
 
   <!-- Blog CTA -->
   <div class="blog-cta blog-cta-learn">
@@ -127,8 +127,15 @@ def slugify(title: str) -> str:
 
 def render_post(md_text: str, month: Optional[str] = None,
                 title: Optional[str] = None,
-                hook: Optional[str] = None) -> Tuple[str, str, str]:
-    """Render blog markdown to a full post HTML page. Returns (title, hook, html)."""
+                hook: Optional[str] = None,
+                chapter_nav: str = "") -> Tuple[str, str, str]:
+    """Render blog markdown to a full post HTML page. Returns (title, hook, html).
+
+    ``chapter_nav`` is an HTML block injected into the SKELETON between the article and
+    the blog CTA (the publish-time chapter cross-link block from crosslink.py). Default
+    "" ⟹ no block, and the rendered page is byte-identical to the pre-injection output.
+    The certified markdown body is never touched — the block lives only in the skeleton.
+    """
     md_title, md_hook, body_md = split_front(md_text)
     title = title or md_title
     hook = hook or md_hook
@@ -144,6 +151,7 @@ def render_post(md_text: str, month: Optional[str] = None,
         title=_html.escape(title),
         hook=_html.escape(hook),
         body=body_html,
+        chapter_nav=chapter_nav,
     )
     return title, hook, page
 
@@ -199,6 +207,24 @@ def insert_card(index_text: str, href: str, title: str, hook: str,
     return new_text, "inserted"
 
 
+def existing_card_tags(index_text: str, href: str) -> Optional[List[str]]:
+    """The data-tags of the EXISTING index card for ``href``, or None when no card. PURE.
+
+    Re-publish tag preservation: an already-indexed post's curated tags (e.g. the
+    hand-set "paiab admissibility-eng" on the GAS chapter cards) must survive a
+    re-publish that passes no explicit tags — insert_card REPLACES the card, so
+    defaulting to cfg default_tags on a re-publish silently clobbers curation
+    (proven live 2026-07-20: both GAS cards degraded to "unicorn"). Returns the
+    whitespace-split tag list (possibly empty) from the card's data-tags attribute.
+    """
+    m = re.search(
+        r'<a href="' + re.escape(href) + r'" class="blog-card" data-tags="([^"]*)"',
+        index_text)
+    if m is None:
+        return None
+    return _html.unescape(m.group(1)).split()
+
+
 def _git(site_root: str, *args: str) -> str:
     """Run a git command in the site checkout; raise loudly on failure."""
     proc = subprocess.run(["git", "-C", site_root, *args],
@@ -219,7 +245,8 @@ def publish_file(md_path: str, cfg: Dict[str, Any],
                  commit: bool = True,
                  title: Optional[str] = None,
                  hook: Optional[str] = None,
-                 link_map: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+                 link_map: Optional[Dict[str, str]] = None,
+                 chapter_nav_html: Optional[str] = None) -> Dict[str, Any]:
     """Publish one blog markdown file onto the live site.
 
     render -> write {blog_dir}/{slug}.html -> insert index card -> git add/commit
@@ -233,15 +260,19 @@ def publish_file(md_path: str, cfg: Dict[str, Any],
     occurrences, link targets and bare text alike) — e.g. {"./blog1.md":
     "skilltree-the-story.html"} points a chapter-bundle sibling reference at
     the published post; put longer/more-specific replacements first.
+    ``chapter_nav_html`` is the pre-rendered chapter cross-link block (from
+    crosslink.render_chapter_nav) injected into the page SKELETON; None/"" ⟹
+    no block. The caller (publish.fire_site_publish) computes it from graph
+    metadata — this function stays graph-free.
     """
     md_file = Path(md_path)
     md_text = md_file.read_text()
     for old, new in (link_map or {}).items():
         md_text = md_text.replace(old, new)
     title, hook, page_html = render_post(md_text, month=month,
-                                         title=title, hook=hook)
+                                         title=title, hook=hook,
+                                         chapter_nav=chapter_nav_html or "")
     slug = slug or slugify(title)
-    tags = tags if tags is not None else list(cfg["default_tags"])
     push = cfg["push"] if push is None else push
 
     site_root = cfg["site_root"]
@@ -255,6 +286,12 @@ def publish_file(md_path: str, cfg: Dict[str, Any],
 
     index_path = blog_dir / "index.html"
     index_text = index_path.read_text()
+    # Tag resolution: explicit tags win; a re-publish with no explicit tags KEEPS the
+    # existing card's curated tags; only a genuinely new card gets cfg default_tags.
+    if tags is None:
+        tags = existing_card_tags(index_text, f"{slug}.html")
+        if tags is None:
+            tags = list(cfg["default_tags"])
     search = build_search_terms(title, hook)
     new_index, card_status = insert_card(
         index_text, f"{slug}.html", title, hook, tags, search)
@@ -299,4 +336,62 @@ def publish_file(md_path: str, cfg: Dict[str, Any],
         "committed": committed,
         "pushed": pushed,
         "live_url": f"{cfg['site_base_url'].rstrip('/')}/{rel_blog}/{slug}.html",
+    }
+
+
+def publish_funnel_file(html_path: str, cfg: Dict[str, Any], slug: str,
+                        push: Optional[bool] = None,
+                        commit: bool = True) -> Dict[str, Any]:
+    """Publish one RENDERED FUNNEL PAGE onto the live site (the funnel lane).
+
+    A funnel artifact (manualcore/render_funnel.py output) is ALREADY a full
+    standalone page in the site-root chrome (style.css relative, reality-check
+    pattern) — so this lane copies it VERBATIM to ``<site_root>/funnel-<slug>.html``
+    (never the blog md→skeleton pipe, never an index card) and rides the same
+    branch-guarded git flow as publish_file. Regeneration-stable: a re-publish
+    overwrites the same file. Returns the publish_file-shaped report (title =
+    the humanized slug + " funnel" — what the update wire posts as {thing}).
+    """
+    src = Path(html_path)
+    page_html = src.read_text()
+    title = f"{slug.replace('-', ' ').title()} funnel"
+    push = cfg["push"] if push is None else push
+    site_root = cfg["site_root"]
+    out_name = f"funnel-{slug}.html"
+    out_path = Path(site_root) / out_name
+    out_path.write_text(page_html)
+    logger.info("unicorn: funnel %s -> %s", html_path, out_path)
+
+    committed = pushed = False
+    if commit:
+        current_branch = _git(site_root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+        if current_branch != cfg["branch"]:
+            raise RuntimeError(
+                f"site checkout {site_root} is on branch {current_branch!r}, not the "
+                f"configured publish branch {cfg['branch']!r} — refusing to commit"
+            )
+        _git(site_root, "add", out_name)
+        status = _git(site_root, "status", "--porcelain", out_name)
+        if status.strip():
+            _git(site_root, "commit", "-m",
+                 f"Publish funnel: {title} (unicorn module)\n\n"
+                 f"Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>")
+            committed = True
+            logger.info("unicorn: committed %s to %s", out_name, site_root)
+        if push:
+            _git(site_root, "pull", "--rebase", "--autostash",
+                 cfg["remote"], cfg["branch"])
+            _git(site_root, "push", cfg["remote"], cfg["branch"])
+            pushed = True
+            logger.info("unicorn: pushed %s/%s", cfg["remote"], cfg["branch"])
+
+    return {
+        "status": "published" if pushed else "staged",
+        "title": title,
+        "slug": slug,
+        "post_path": str(out_path),
+        "index_card": "none",
+        "committed": committed,
+        "pushed": pushed,
+        "live_url": f"{cfg['site_base_url'].rstrip('/')}/{out_name}",
     }
